@@ -1,0 +1,334 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+	<title>Star Shooter</title>
+	<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+	<style>
+		canvas {
+			border: 20px solid #d3d3d3;
+			background-color: grey;
+
+		}
+	</style>
+</head>
+
+<body onload="startGame()">
+
+	<script>
+		var myGamePiece;
+		var myGamePiece2;
+
+		function startGame() {
+			myGameArea.start();
+			myGamePiece = new component(100, 120, 50, "red", 0, "player1");
+			myGamePiece2 = new component(1080, 630, 50, "yellow", 180, "player2");
+			myLifeBar.start();
+		}
+		// End of Start Game
+
+
+		var myGameArea = {
+			canvas: document.createElement("canvas"),
+			start: function () {
+				this.canvas.width = 1200;
+				this.canvas.height = 750;
+				this.context = this.canvas.getContext("2d");
+				document.body.insertBefore(this.canvas, document.body.childNodes[0]);
+				this.interval = setInterval(updateGameArea, 20);
+				window.addEventListener('keydown', function (e) {
+					myGameArea.keys = (myGameArea.keys || []);
+					myGameArea.keys[e.keyCode] = true;
+				})
+				window.addEventListener('keyup', function (e) {
+					myGameArea.keys[e.keyCode] = false;
+				})
+			}
+			,
+			clear: function () {
+				this.context.clearRect(0, 0, this.canvas.width, this.canvas.height);
+			}
+		}
+		// End of GameArea
+		var myLifeBar = {
+			canvas: document.createElement("canvas"),
+			start: function () {
+				this.canvas.width = 1200;
+				this.canvas.height = 75;
+				this.context = this.canvas.getContext("2d");
+				document.body.insertBefore(this.canvas, document.body.childNodes[0]);
+				this.interval = setInterval(updateLifeBar, 20);
+				ctx = myLifeBar.context;
+				ctx.font = "30PX Arial";
+				ctx.fillText("Player 1: " + myGamePiece.lifepoints, 0, 50);
+				ctx.fillText("Player 2: " + myGamePiece2.lifepoints, 1000, 50)
+			},
+			clear: function () {
+				this.context.clearRect(0, 0, this.canvas.width, this.canvas.height);
+			}
+		}
+
+
+		function component(x, y, scale, color, angle, playerName) {
+			// x and y are the center not head values
+			this.angle = angle;
+			this.x = x;
+			this.y = y;
+			this.scale = scale;
+			this.movespeed = 0;
+			this.maxSpeed = 5;
+			this.accleration = 0.05;
+			this.brakepower = 0.1;
+			this.shootTime = 600;
+			this.lastShot = new Date().getTime();
+			this.lastHit = new Date().getTime();
+			this.lifepoints = 5;
+			this.playerName = playerName;
+			this.hitTime = 500;
+			var bullets = [];
+			this.bulletIsFlying = false;
+			this.color = color;
+
+
+
+
+			this.update = function () {
+				this.ctx = myGameArea.context;
+				this.ctx.fillStyle = this.color;
+				this.ctx.beginPath();
+				this.upperAngle = addToAngle(this.angle, 20);
+				this.lowerAngle = desFromAngle(this.angle, 20);
+				this.headX = this.x + (Math.cos(toRadians(this.angle)) * 25);
+				this.headY = this.y - (Math.sin(toRadians(this.angle)) * 25);
+				this.upperX = this.headX - (Math.cos(toRadians(this.upperAngle)) * this.scale);
+				this.upperY = this.headY + (Math.sin(toRadians(this.upperAngle)) * this.scale);
+				this.lowerX = this.headX - (Math.cos(toRadians(this.lowerAngle)) * this.scale);
+				this.lowerY = this.headY + (Math.sin(toRadians(this.lowerAngle)) * this.scale);
+				this.ctx.moveTo(this.headX, this.headY);
+				this.ctx.lineTo(this.upperX, this.upperY);
+				this.ctx.lineTo(this.lowerX, this.lowerY);
+				this.ctx.fill();
+				if (this.bulletIsFlying) {
+					this.bulletFlys();
+				}
+
+			}
+
+
+			this.changeAngle = function (tempAngle) {
+				if (tempAngle > 0) {
+					this.angle = addToAngle(this.angle, tempAngle);
+					console.log("ADD");
+				}
+				if (tempAngle < 0) {
+					tempAngle = tempAngle * -1;
+					this.angle = desFromAngle(this.angle, tempAngle);
+					console.log("DES");
+				}
+			}
+
+			this.acclerate = function () {
+				this.movespeed = this.movespeed + this.accleration;
+				if (this.movespeed > this.maxSpeed) {
+					this.movespeed = this.maxSpeed;
+				}
+			}
+
+			this.brake = function () {
+				this.movespeed = this.movespeed - this.brakepower;
+				if (this.movespeed < 0) {
+					this.movespeed = 0;
+				}
+			}
+
+			this.move = function () {
+				tempX = this.x;
+				tempY = this.y;
+				this.x = this.x + (Math.cos(toRadians(this.angle)) * this.movespeed);
+				this.y = this.y - (Math.sin(toRadians(this.angle)) * this.movespeed);
+				if (this.x < 10 || this.x > 1190) {
+					this.x = tempX;
+				}
+				if (this.y < 10 || this.y > 740) {
+					this.y = tempY;
+				}
+			}
+
+			this.shoot = function () {
+				this.currenTime = new Date().getTime();
+				// console.log("Time"+this.currenTime);
+				// console.log("Last Shot"+this.lastShot);
+				if (this.lastShot < this.currenTime - this.shootTime) {
+					console.log("Shoot");
+					var audio = new Audio('shoot.mp3');
+					audio.play();
+					bullets.push(new bullet(this.x, this.y, this.angle, playerName));
+					this.lastShot = new Date().getTime();
+					this.bulletIsFlying = true;
+				}
+			}
+
+			this.bulletFlys = function () {
+				//console.log(bullets);
+				bullets.forEach(function (bullet) {
+
+					bullet.update();
+					if (bullet.shootOrgin == "player2") {
+						if (checkIfHitPlayer1(bullet) == true) {
+							console.log("Getroffen");
+							bullets.splice(bullets.indexOf(bullet), 1);
+						}
+					}
+					if (bullet.shootOrgin == "player1") {
+						if (checkIfHitPlayer2(bullet) == true) {
+							console.log("Getroffen");
+							bullets.splice(bullets.indexOf(bullet), 1);
+						}
+					}
+					// canvas width = 1200;
+					// canvas height = 750;
+					if (bullet.x > 1200 || bullet.x < 0 || bullet.y > 750 || bullet.y < 0) {
+						bullets.splice(bullets.indexOf(bullet), 1);
+					}
+				});
+			}
+
+		}
+		//End of Component
+
+		function bullet(x, y, angle, shootOrgin) {
+			this.shootOrgin = shootOrgin;
+			this.color = "green";
+			this.x = x;
+			this.y = y;
+			this.angle = angle;
+			this.bulletSpeed = 8;
+			this.update = function () {
+				this.x = this.x + (Math.cos(toRadians(this.angle)) * this.bulletSpeed);
+				this.y = this.y - (Math.sin(toRadians(this.angle)) * this.bulletSpeed);
+				ctx2 = myGameArea.context;
+				ctx2.fillStyle = this.color;
+				ctx2.beginPath();
+				// ctx.arc(this.x, this.y, 25, 0, 2 * Math.PI);
+				ctx2.fillRect(this.x, this.y, 10, 10);
+				ctx2.fill();
+			}
+		}
+
+		function checkIfHitPlayer1(bullet) {
+			this.currenTime = new Date().getTime();
+			// console.log("Time"+this.currenTime);
+			// console.log("Last Shot"+this.lastShot);
+			if (myGamePiece.lastHit < this.currentTime - myGamePiece.hitTime) {
+				if ((bullet.x > myGamePiece.x - myGamePiece.scale / 2 && bullet.x < myGamePiece.x + myGamePiece.scale / 2) && (bullet.y > myGamePiece.y - myGamePiece.scale / 2 && bullet.y < myGamePiece.y + myGamePiece.scale / 2)) {
+					myGamePiece.lifepoints--;
+					var audioHit1 = new Audio('hit.mp3');
+					audioHit1.play();
+					if (myGamePiece.lifepoints <= 0) {
+						alert("Player 2 Won");
+					}
+					return true;
+					console.log("Getroffen");
+				}
+				else {
+					return false
+				}
+			}
+		}
+
+		function checkIfHitPlayer2(bullet) {
+			this.currenTime = new Date().getTime();
+			// console.log("Time"+this.currenTime);
+			// console.log("Last Shot"+this.lastShot);
+			if (myGamePiece2.lastHit < this.currenTime - myGamePiece2.hitTime) {
+				if ((bullet.x > myGamePiece2.x - myGamePiece2.scale / 2 && bullet.x < myGamePiece2.x + myGamePiece2.scale / 2) && (bullet.y > myGamePiece2.y - myGamePiece2.scale / 2 && bullet.y < myGamePiece2.y + myGamePiece2.scale / 2)) {
+					myGamePiece2.lifepoints--;
+					var audioHit2 = new Audio('hit.mp3');
+					audioHit2.play();
+					if (myGamePiece2.lifepoints <= 0) {
+						alert("Player 1 Won");
+					}
+					return true;
+					console.log("Getroffen");
+				}
+				else {
+					return false
+				}
+			}
+		}
+
+
+
+		function toRadians(angle) {
+			return angle * (Math.PI / 180);
+		}
+
+		function addToAngle(angle, toAdd) {
+			return (angle + toAdd) % 360;
+		}
+
+		function desFromAngle(angle, toDes) {
+			var tempAngle = angle - toDes;
+			// console.log("Test: "+ tempAngle*-1);
+			if (tempAngle < 0) {
+				return 360 - ((tempAngle * -1) % 360);
+			}
+			else {
+				return tempAngle;
+			}
+		}
+
+
+
+
+		function updateGameArea() {
+			myGameArea.clear();
+
+			if (myGameArea.keys && myGameArea.keys[101]) { myGamePiece2.brake(); }
+			if (myGameArea.keys && myGameArea.keys[104]) { myGamePiece2.acclerate(); }
+			if (myGameArea.keys && myGameArea.keys[100]) { myGamePiece2.changeAngle(2); }
+			if (myGameArea.keys && myGameArea.keys[102]) { myGamePiece2.changeAngle(-2); }
+			if (myGameArea.keys && myGameArea.keys[13]) { myGamePiece2.shoot(); }
+
+			if (myGameArea.keys && myGameArea.keys[83]) { myGamePiece.brake(); }
+			if (myGameArea.keys && myGameArea.keys[87]) { myGamePiece.acclerate(); }
+			if (myGameArea.keys && myGameArea.keys[65]) { myGamePiece.changeAngle(2); }
+			if (myGameArea.keys && myGameArea.keys[68]) { myGamePiece.changeAngle(-2); }
+			if (myGameArea.keys && myGameArea.keys[32]) { myGamePiece.shoot(); }
+
+			myGamePiece2.move();
+			myGamePiece2.update();
+			myGamePiece.move();
+			myGamePiece.update();
+		}
+
+		function updateLifeBar() {
+			myLifeBar.clear();
+			ctx = myLifeBar.context;
+			ctx.font = "30PX Arial";
+			ctx.fillText("Player 1: " + myGamePiece.lifepoints, 0, 50);
+			ctx.fillText("Player 2: " + myGamePiece2.lifepoints, 1000, 50)
+
+		}
+		// End of Update
+	</script>
+
+	<!-- <h1>StarShooter Version 1.0</h1>
+	<p> Player 1:<br>
+		Speed Up: Arrow up<br>
+		Brake: Arrow down<br>
+		Turn Around: Arrow Right & Arrow Left<br>
+		Shoot: Numpad 0
+	</p>
+	<p style="display: inline;">
+		Player 2:<br>
+		Speed Up: W<br>
+		Brake: S<br>
+		Turn Around: A & D<br>
+		Shoot: Space
+	</p> -->
+
+
+</body>
+
+</html>
